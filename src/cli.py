@@ -11,6 +11,7 @@ import feedparser
 from flask import Blueprint
 
 from src import config
+from src.models import Post, PostTag, Tag
 
 bp = Blueprint("cli", "cli", cli_group=None)
 
@@ -107,15 +108,44 @@ def calculate_cost(model, input_tokens, output_tokens):
 @bp.cli.command("scrape")
 def scrape():
     for feed in config.RSS_FEEDS:
+        sys.stdout.write(f"[+] Scraping {feed}...")
+        sys.stdout.flush()
         parsed_feed = feedparser.parse(feed)
+        sys.stdout.write(f"found {len(parsed_feed.entries)}\n")
+        sys.stdout.flush()
         for entry in parsed_feed.entries:
             cleaned_id = clean_string(entry.id)
-            # dt = convert_to_dt(entry["published_parsed"])
-            # dt = dt.strftime("%Y%m%d-%H%M%S")
-            # print(dt)
-
-            with open(f"data/raw/{cleaned_id}.json", "w") as f:
+            file_path = f"data/raw/{cleaned_id}.json"
+            dt = convert_to_dt(entry["published_parsed"])
+            post_id = Post.select().filter(Post.id == cleaned_id).first()
+            if post_id:
+                print(f" - Post {post_id} already exists, skipping")
+                continue
+            post = Post.create(
+                id=cleaned_id,
+                title=entry["title"],
+                url=entry["link"],
+                post_date=dt,
+                source=feed,
+                # location_type
+                raw_location=file_path
+            )
+            print(f" - Post {post.id} ({dt.strftime("%Y%m%d-%H%M%S")}) created and saved at {file_path}")
+            with open(file_path, "w") as f:
                 json.dump(entry, f)
+        sleep(1)
+
+
+# class Tag(Model):
+#     id = CharField(default=gen_uuid)
+#     create_date = DateTimeField(default=datetime.now(tz=timezone.UTC))
+#     name = CharField(unique=True)
+
+# class PostTag(Model):
+#     id = CharField(default=gen_uuid)
+#     create_date = DateTimeField(default=datetime.now(tz=timezone.UTC))
+#     post = ForeignKeyField(Post, backref="tags")
+#     tag = ForeignKeyField(Tag, backref="posts")
 
 @bp.cli.command("summarize")
 def summarize():
@@ -138,6 +168,7 @@ def summarize():
                 f.write(json.dumps({
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
+                    "model": model_id,
                     "total_cost": cost,
                     "content": full_response
                 }))

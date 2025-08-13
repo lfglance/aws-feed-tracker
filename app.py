@@ -1,7 +1,7 @@
 from flask import Flask
 
 from src import cli
-from src import config 
+from src import config
 
 app = Flask(__name__)
 # app.config.from_envvar("FLASK_SECRETS")

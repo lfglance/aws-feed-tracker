@@ -12,20 +12,32 @@ db = SqliteDatabase(f"{config.DATA_DIR}/sqlite.db")
 def gen_uuid() -> str:
     return str(uuid4())
 
-class FeedItem(Model):
+class Base(Model):
+    class Meta:
+        database = db
+
+class Post(Base):
+    id = CharField()
+    uuid = CharField(default=gen_uuid)
+    create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
+    post_date = DateTimeField()
+    title = CharField(unique=False)
+    url = CharField(unique=False)
+    source = CharField(unique=False)
+    location_type = CharField(null=True)
+    raw_location = CharField()
+    summary_location = CharField(null=True)
+
+class Tag(Base):
     id = CharField(default=gen_uuid)
-    create_date = DateTimeField(default=datetime.now(tz=timezone.UTC))
-    title = CharField(unique=True)
-    url = CharField(unique=True)
-    source = CharField(unique=True)
-    
+    create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
+    name = CharField(unique=True)
 
-# "page": {
-#         "id": "string (uuid)",
-#         "create_date": "timestamp",
-#         "title": "string (page title from rss)",
-#         "url": "string (url)",
-#         "source": "string (rss url)"
-#     },
+class PostTag(Base):
+    id = CharField(default=gen_uuid)
+    create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
+    post = ForeignKeyField(Post, backref="tags")
+    tag = ForeignKeyField(Tag, backref="posts")
 
-db.create_tables([Node])
+
+db.create_tables([Post, Tag, PostTag])
