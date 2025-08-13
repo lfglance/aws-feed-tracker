@@ -3,7 +3,7 @@ import sys
 import json
 import glob
 import datetime
-from time import mktime
+from time import mktime, sleep
 from pathlib import Path
 
 import boto3
@@ -30,12 +30,25 @@ def query_bedrock(model_id, prompt, query, temperature=0.7, max_tokens=5000):
         "messages": [{"role": "user", "content": [{"text": query}]}]
     }
     if model_id.startswith("anthropic"):
-        body["anthropic_version"] = "bedrock-2023-05-31"
-        body["top_p"] = 0.9
-        body["max_tokens"] = max_tokens
-        body["temperature"] = temperature
-        body["messages"] = [{"role": "user", "content": query}]
-        body["system"] = prompt
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "top_p": 0.9,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": query}],
+            "system": prompt
+        }
+    elif model_id.startswith("us.amazon.nova"):
+        body = {
+            "system": [{"text": prompt}],
+            "messages": [{"role": "user", "content": [{"text": query}]}],
+            "inferenceConfig": {
+                "maxTokens": max_tokens, 
+                "topP": 0.9, 
+                "topK": 20, 
+                "temperature": temperature
+            }
+        }
 
     body = json.dumps(body)
     response = bedrock.invoke_model_with_response_stream(
@@ -93,7 +106,7 @@ def calculate_cost(model, input_tokens, output_tokens):
 
 @bp.cli.command("scrape")
 def scrape():
-    for feed in config.rss_feeds:
+    for feed in config.RSS_FEEDS:
         parsed_feed = feedparser.parse(feed)
         for entry in parsed_feed.entries:
             cleaned_id = clean_string(entry.id)
@@ -117,7 +130,7 @@ def summarize():
         print(f"Summarizing {file_name}")
         with open(file, "r") as f:
             response = query_bedrock(model_id, "You are a helpful assistant that summarizes AWS blog posts and RSS feeds.", f.read())
-            full_response, results = handle_bedrock_response(model_id, response, True)
+            full_response, results = handle_bedrock_response(model_id, response, False)
             input_tokens = results.get("inputTokenCount", 0)
             output_tokens = results.get("outputTokenCount", 0)
             cost = calculate_cost(model_id, input_tokens, output_tokens)
@@ -137,6 +150,7 @@ def summarize():
             Path(file).unlink()
         
         print()
+        sleep(5)
 
 @bp.cli.command("costs")
 def costs():
