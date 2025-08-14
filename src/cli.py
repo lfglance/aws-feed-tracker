@@ -135,18 +135,6 @@ def scrape():
                 json.dump(entry, f)
         sleep(1)
 
-
-# class Tag(Model):
-#     id = CharField(default=gen_uuid)
-#     create_date = DateTimeField(default=datetime.now(tz=timezone.UTC))
-#     name = CharField(unique=True)
-
-# class PostTag(Model):
-#     id = CharField(default=gen_uuid)
-#     create_date = DateTimeField(default=datetime.now(tz=timezone.UTC))
-#     post = ForeignKeyField(Post, backref="tags")
-#     tag = ForeignKeyField(Tag, backref="posts")
-
 @bp.cli.command("summarize")
 def summarize():
     for file in glob.glob("data/raw/*.json"):
@@ -183,6 +171,42 @@ def summarize():
         print()
         sleep(5)
 
+@bp.cli.command("tag")
+def tag():
+    posts = Post.select()
+    for post in posts:
+        if not post.tags:
+            file_name = Path(f"data/summarized/{post.id}.json_summarized.json")
+            summary_content = None
+            with open(file_name, "r") as f:
+                summary_content = json.dumps(f.read())
+            response = query_bedrock(model_id, "You are a helpful assistant that retrieves metadata AWS blog posts and RSS feeds.", "Create a set of a maximum of 5 metadata tags which describe the following post. Provide results in a comma separated list: " + summary_content)
+            full_response, results = handle_bedrock_response(model_id, response, False)
+            input_tokens = results.get("inputTokenCount", 0)
+            output_tokens = results.get("outputTokenCount", 0)
+            cost = calculate_cost(model_id, input_tokens, output_tokens)
+            tags = full_response.split(",")
+            for tag in tags:
+                exists = Tag.select().filter(Tag.name == tag.strip())
+                if not exists:
+                    t = Tag.create(
+                        name=tag.strip()
+                    )
+                    PostTag.create(
+                        post=post,
+                        tag=t
+                    )
+                    print(f"Added tag '{tag.strip()}' to post {post.id}")
+                else:
+                    PostTag.create(post=post, tag=exists.first())
+                    print(f"Added existing tag '{exists.first().name}' to post {post.id}")
+
+            print(f"**Input Tokens**: {input_tokens}")
+            print(f"**Output Tokens**: {output_tokens}")
+            print(f"**Estimated Cost**: ${cost:.6f}")
+            sleep(2)
+
+
 @bp.cli.command("costs")
 def costs():
     total = 0
@@ -194,4 +218,12 @@ def costs():
     
     print(f"\nGrand Total: ${total:.6f}")
 
-    
+@bp.cli.command("debug")
+def debug():
+    posts = Post.select()
+    for post in posts:
+        if not post.tags:
+            print("no tags")
+        else:
+            for tag in post.tags:
+                print(tag)
