@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<section class="text-center" style="margin: 1em 0">
+    <h1>{{ post.title }}</h1>
+    <p>{{ post.post_date }} ({{ post.post_date | humanize }})</p>
+    {% for tag in post.tags %}
+    <span class="button" style="background-color: {{ tag.name | string_to_color }}80; margin: 4px;">{{ tag.name }}</span>
+    {% endfor %}
+</section>
+
+
+<section style="padding: 1em;">
+    {{ content | safe }}
+</section>
+
+<section class="text-center">
+    <a href="/" class="button">Go Home</a>
+</section>
+
+{% endblock %}

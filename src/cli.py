@@ -11,12 +11,10 @@ import feedparser
 from flask import Blueprint
 
 from src import config
-from src.models import Post, PostTag, Tag
+from src.models import Post, Tag, BedrockCall
 
 bp = Blueprint("cli", "cli", cli_group=None)
 
-model_id = "us.amazon.nova-micro-v1:0"
-# model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 
 def clean_string(input_string):
     return re.sub(r'[^a-zA-Z0-9]+', '_', input_string)
@@ -92,19 +90,6 @@ def handle_bedrock_response(model_id, response, print_stdout=True):
 
     return (full_response, results)
 
-def calculate_cost(model, input_tokens, output_tokens):
-    # model id -> input token cost, output token cost
-    models = {
-        "anthropic.claude-3-5-sonnet-20240620-v1:0": (0.003, 0.015),
-        "us.amazon.nova-pro-v1:0": (0.0008, 0.0032),
-        "us.amazon.nova-micro-v1:0": (0.000035, 0.00014)
-    }
-    icp, ocp = models[model]
-    input_cost = (input_tokens / 1000) * icp
-    output_cost = (output_tokens / 1000) * ocp
-    total_cost = input_cost + output_cost
-    return total_cost
-
 @bp.cli.command("scrape")
 def scrape():
     for feed in config.RSS_FEEDS:
@@ -137,6 +122,7 @@ def scrape():
 
 @bp.cli.command("summarize")
 def summarize():
+    summarize_model_id = "us.amazon.nova-micro-v1:0"
     for file in glob.glob("data/raw/*.json"):
         summarized = False
         file_name = Path(file).name
@@ -147,23 +133,23 @@ def summarize():
             continue
         print(f"Summarizing {file_name}")
         with open(file, "r") as f:
-            response = query_bedrock(model_id, "You are a helpful assistant that summarizes AWS blog posts and RSS feeds.", f.read())
-            full_response, results = handle_bedrock_response(model_id, response, False)
+            response = query_bedrock(summarize_model_id, "You are a helpful assistant that summarizes AWS blog posts and RSS feeds.", f.read())
+            full_response, results = handle_bedrock_response(summarize_model_id, response, False)
             input_tokens = results.get("inputTokenCount", 0)
             output_tokens = results.get("outputTokenCount", 0)
-            cost = calculate_cost(model_id, input_tokens, output_tokens)
+            br_call = BedrockCall.create(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                model_id=summarize_model_id
+            )
+
             with open(summarized_file, "w") as f:
-                f.write(json.dumps({
-                    "input_tokens": input_tokens,
-                    "output_tokens": output_tokens,
-                    "model": model_id,
-                    "total_cost": cost,
-                    "content": full_response
-                }))
+                f.write(full_response)
+
             summarized = True            
             print(f"**Input Tokens**: {input_tokens}")
             print(f"**Output Tokens**: {output_tokens}")
-            print(f"**Estimated Cost**: ${cost:.6f}")
+            print(f"**Estimated Cost**: ${br_call.calculate_cost():.6f}")
         
         if summarized:
             Path(file).unlink()
@@ -173,50 +159,46 @@ def summarize():
 
 @bp.cli.command("tag")
 def tag():
+    tag_model_id = "us.amazon.nova-pro-v1:0"
     posts = Post.select()
     for post in posts:
         if not post.tags:
             file_name = Path(f"data/summarized/{post.id}.json_summarized.json")
             summary_content = None
             with open(file_name, "r") as f:
-                summary_content = json.dumps(f.read())
-            response = query_bedrock(model_id, "You are a helpful assistant that retrieves metadata AWS blog posts and RSS feeds.", "Create a set of a maximum of 5 metadata tags which describe the following post. Provide results in a comma separated list: " + summary_content)
-            full_response, results = handle_bedrock_response(model_id, response, False)
+                summary_content = f.read()
+            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds.", "Summarize the following text as a comma-delimited list of 3-6 metadata tags capturing key topics, entities, and themes: " + summary_content)
+            full_response, results = handle_bedrock_response(tag_model_id, response, False)
             input_tokens = results.get("inputTokenCount", 0)
             output_tokens = results.get("outputTokenCount", 0)
-            cost = calculate_cost(model_id, input_tokens, output_tokens)
-            tags = full_response.split(",")
+            br_call = BedrockCall.create(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                model_id=tag_model_id
+            )
+            tags = full_response.split(",")[0:4]
             for tag in tags:
-                exists = Tag.select().filter(Tag.name == tag.strip())
-                if not exists:
-                    t = Tag.create(
-                        name=tag.strip()
-                    )
-                    PostTag.create(
-                        post=post,
-                        tag=t
-                    )
-                    print(f"Added tag '{tag.strip()}' to post {post.id}")
-                else:
-                    PostTag.create(post=post, tag=exists.first())
-                    print(f"Added existing tag '{exists.first().name}' to post {post.id}")
+                if tag.strip().lower() == "aws":
+                    print("Skipping tag 'AWS'")
+                    continue
+                Tag.create(
+                    name=tag.strip(),
+                    post=post
+                )
+                print(f"Added tag '{tag.strip()}' to post {post.uuid}")
 
             print(f"**Input Tokens**: {input_tokens}")
             print(f"**Output Tokens**: {output_tokens}")
-            print(f"**Estimated Cost**: ${cost:.6f}")
+            print(f"**Estimated Cost**: ${br_call.calculate_cost():.6f}")
             sleep(2)
 
 
 @bp.cli.command("costs")
 def costs():
     total = 0
-    for file in glob.glob("data/summarized/*.json"):
-        with open(file, "r") as f:
-            data = json.loads(f.read())
-            print(f"Cost of {Path(file).name}: ${data.get("total_cost"):.6f}")
-            total += data.get("total_cost")
-    
-    print(f"\nGrand Total: ${total:.6f}")
+    for cost in BedrockCall.select():
+        total += cost.calculate_cost()    
+    print(f"\nTotal: ${total:.6f}")
 
 @bp.cli.command("debug")
 def debug():

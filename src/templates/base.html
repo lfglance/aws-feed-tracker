@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="MobileOptimized" content="320">
+    <link rel="shortcut icon" href="/static/favicon.ico" type="image/x-icon" />
+    <meta property="fb:app_id" content="0" />
+    <meta property="og:image" content="" />
+    <meta property="og:description" content="Summarized and tagged AWS updates for easy navigation" />
+    <meta property="og:url" content="" />
+    <meta property="og:title" content="AWS Feed Tracker" />
+    <meta property="og:type" content="website" />
+    <meta name="keywords" content="aws, genai, bedrock, rss, updates, news, blogs">
+    <link href="/static/css/tiny-brutalism.css" rel="stylesheet">
+    <title>AWS Feed Tracker</title>
+</head>
+
+<style>
+    .container {
+        max-width: 75% !important;
+    }
+</style>
+
+<body>
+    <div class="container">
+        {% block content %} {% endblock %}
+    </div>
+    <div id="footer" class="center"></div>
+</body>
+
+</html>

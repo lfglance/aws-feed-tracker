@@ -31,13 +31,28 @@ class Post(Base):
 class Tag(Base):
     id = CharField(default=gen_uuid)
     create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
-    name = CharField(unique=True)
+    name = CharField(unique=False)
+    post = ForeignKeyField(Post, backref="tags", unique=False)
 
-class PostTag(Base):
+class BedrockCall(Base):
     id = CharField(default=gen_uuid)
     create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
-    post = ForeignKeyField(Post, backref="tags")
-    tag = ForeignKeyField(Tag, backref="posts")
+    input_tokens = IntegerField()
+    output_tokens = IntegerField()
+    model_id = CharField()
+
+    def calculate_cost(self):
+        # model id -> input token cost, output token cost
+        models = {
+            "anthropic.claude-3-5-sonnet-20240620-v1:0": (0.003, 0.015),
+            "us.amazon.nova-pro-v1:0": (0.0008, 0.0032),
+            "us.amazon.nova-micro-v1:0": (0.000035, 0.00014)
+        }
+        icp, ocp = models[self.model_id]
+        input_cost = (self.input_tokens / 1000) * icp
+        output_cost = (self.output_tokens / 1000) * ocp
+        total_cost = input_cost + output_cost
+        return total_cost
 
 
-db.create_tables([Post, Tag, PostTag])
+db.create_tables([Post, Tag, BedrockCall])
