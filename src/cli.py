@@ -160,14 +160,14 @@ def summarize():
 @bp.cli.command("tag")
 def tag():
     tag_model_id = "us.amazon.nova-pro-v1:0"
-    posts = Post.select()
+    posts = Post.select().order_by(Post.post_date.desc())
     for post in posts:
         if not post.tags:
             file_name = Path(f"data/summarized/{post.id}.json_summarized.json")
             summary_content = None
             with open(file_name, "r") as f:
                 summary_content = f.read()
-            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds.", "Summarize the following text as a comma-delimited list of 3-6 metadata tags capturing key topics, entities, and themes: " + summary_content)
+            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds. Your job is to summarize text to the most overall topics in a comma delimited list.", "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
             full_response, results = handle_bedrock_response(tag_model_id, response, False)
             input_tokens = results.get("inputTokenCount", 0)
             output_tokens = results.get("outputTokenCount", 0)
@@ -176,7 +176,7 @@ def tag():
                 output_tokens=output_tokens,
                 model_id=tag_model_id
             )
-            tags = full_response.split(",")[0:4]
+            tags = full_response.split(",")
             for tag in tags:
                 if tag.strip().lower() == "aws":
                     print("Skipping tag 'AWS'")

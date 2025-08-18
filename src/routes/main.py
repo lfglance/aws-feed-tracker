@@ -30,15 +30,6 @@ def view_post(uuid):
     with open(file_name, "r") as f:
         summary = f.read()
     return render_template("main/post.html", post=post, content=markdown(summary))
-    return {
-        "id": post.id,
-        "uuid": post.uuid,
-        "title": post.title,
-        "post_date": post.post_date,
-        "url": post.url,
-        "source": post.source,
-        "contents": markdown(summary)
-    }
 
 @bp.route("/stats")
 def stats():

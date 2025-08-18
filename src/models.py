@@ -28,6 +28,12 @@ class Post(Base):
     raw_location = CharField()
     summary_location = CharField(null=True)
 
+    def get_tags(self, amount=0):
+        tags = Tag.select().filter(Tag.post == self)
+        if amount:
+            tags = tags.limit(amount)
+        return tags
+
 class Tag(Base):
     id = CharField(default=gen_uuid)
     create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
