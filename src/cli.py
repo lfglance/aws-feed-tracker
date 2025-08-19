@@ -81,7 +81,7 @@ def tag():
             summary_content = None
             with open(post.get_summary(), "r") as f:
                 summary_content = f.read()
-            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds. Your job is to summarize text to the most overall topics in a comma delimited list.", "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
+            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds. Your job is to summarize text to the most overall topics in a comma delimited list. You must be extremely precise and only grab the most relevant terms and not excessively capture minor components. Just the highest level themes. The text should be cleaned up, no whitespaces or hanging dashes. Avoid the basic tag of 'aws' because that is a given.", "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
             full_response, _ = handle_bedrock_response(tag_model_id, response, True)
             
             tags = full_response.split(",")

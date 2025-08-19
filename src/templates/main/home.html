@@ -5,32 +5,15 @@
 <section class="text-center" style="padding: 1em 0 0 0;">
     <h1>AWS Feed Tracker</h1>
     <p>Find relevant AWS updates to you. Filter the signal from the noise.</p>
+    <a href="/stats">Stats</a>
 </section>
 
-
 <section>
-    <form>
-        <label for="text-input">Filter/search</label>
-        <input type="text" id="text-input" placeholder="Enter text here">
+    <form hx-get="/htmx/search" hx-target="#search_results" hx-trigger="input delay:500ms" hx-swap="innerHTML">
+        <label for="query">Filter/search</label>
+        <input type="text" id="query" placeholder="Enter text here" name="query">
     </form>
-    <br />
-    {% for chunk in posts %}
-    <div class="row">
-        {% for post in chunk %}
-        <div class="col col-4">
-            <div class="box" style="max-height: 400px; min-height: 300px; margin: 10px; overflow-wrap: anywhere;">
-                <a href="{{ url_for('main.view_post', uuid=post.uuid) }}"><strong>{{ post.title }}</strong></a>
-                <br />
-                <span>{{ post.post_date }} ({{ post.post_date | humanize }})</span>
-                <br />
-                {% for tag in post.get_tags(4) %}
-                <span class="button" style="background-color: {{ tag.name | string_to_color }}80; margin: 4px;">{{ tag.name }}</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endfor %}
+    <div id="search_results">{% include "htmx/list_posts.html" %}</div>
 </section>
 <br>
 
