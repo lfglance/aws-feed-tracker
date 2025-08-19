@@ -1,3 +1,4 @@
+from pathlib import Path
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -28,6 +29,10 @@ class Post(Base):
     raw_location = CharField()
     summary_location = CharField(null=True)
 
+    def get_summary(self):
+        fp = f"data/summarized/{self.id}.json_summarized.json"
+        return Path(fp)
+
     def get_tags(self, amount=0):
         tags = Tag.select().filter(Tag.post == self)
         if amount:
@@ -38,7 +43,7 @@ class Tag(Base):
     id = CharField(default=gen_uuid)
     create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
     name = CharField(unique=False)
-    post = ForeignKeyField(Post, backref="tags", unique=False)
+    post = ForeignKeyField(Post, backref="tags", unique=False, on_delete="CASCADE")
 
 class BedrockCall(Base):
     id = CharField(default=gen_uuid)

@@ -4,6 +4,7 @@
 
 <section class="text-center" style="margin: 1em 0">
     <h1>{{ post.title }}</h1>
+    <h4>From {{ post.source }}</h4>
     <p>{{ post.post_date }} ({{ post.post_date | humanize }})</p>
     {% for tag in post.tags %}
     <span class="button" style="background-color: {{ tag.name | string_to_color }}80; margin: 4px;">{{ tag.name }}</span>

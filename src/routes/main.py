@@ -13,6 +13,8 @@ def main():
     posts = [[]]
     chunk_size = 3
     for post in Post.select().order_by(Post.post_date.desc()):
+        if not post.get_summary().exists():
+            continue
         if len(posts[-1]) >= chunk_size:
             posts.append([post])
         else:
@@ -24,7 +26,7 @@ def view_post(uuid):
     post = Post.select().filter(Post.uuid == uuid).first()
     if not post:
         return redirect("/")
-    file_name = f"data/summarized/{post.id}.json_summarized.json"
+    file_name = post.get_summary()
     summary = ""
     with open(file_name, "r") as f:
         summary = f.read()
