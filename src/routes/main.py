@@ -1,7 +1,8 @@
-from markdown import markdown
+from markdown import Markdown
 from flask import Blueprint, render_template, redirect
 
 from src.models import Post, Tag, BedrockCall
+from src.helpers import BlankTargetExtension
 
 bp = Blueprint("main", "main")
 
@@ -20,8 +21,6 @@ def main():
 
 @bp.route("/post/<uuid>")
 def view_post(uuid):
-    # for t in Tag.select():
-    #     t.delete_instance()
     post = Post.select().filter(Post.uuid == uuid).first()
     if not post:
         return redirect("/")
@@ -29,7 +28,8 @@ def view_post(uuid):
     summary = ""
     with open(file_name, "r") as f:
         summary = f.read()
-    return render_template("main/post.html", post=post, content=markdown(summary))
+    md = Markdown(extensions=[BlankTargetExtension()])
+    return render_template("main/post.html", post=post, content=md.convert(summary))
 
 @bp.route("/stats")
 def stats():
