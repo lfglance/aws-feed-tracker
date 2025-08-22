@@ -4,6 +4,7 @@ import glob
 from time import sleep
 from pathlib import Path
 
+import click
 import feedparser
 from flask import Blueprint
 
@@ -29,9 +30,7 @@ def scrape():
             post_id = Post.select().filter(Post.id == cleaned_id).first()
             with open(file_path, "w") as f:
                 json.dump(entry, f)
-            if post_id:
-                print(f" - Post {post_id} already exists, skipping")
-            else:
+            if not post_id:
                 post = Post.create(
                     id=cleaned_id,
                     title=entry["title"],
@@ -47,7 +46,17 @@ def scrape():
 
 @bp.cli.command("summarize")
 def summarize():
-    summarize_model_id = "us.amazon.nova-micro-v1:0"
+    # summarize_model_id = "us.amazon.nova-micro-v1:0"
+    summarize_model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+    prompt = " ".join([
+        "You are a helpful assistant that summarizes AWS blog posts and RSS feeds.",
+        "Try to condense the post as much as you can, capturing the most important themes and topics.",
+        "If there are links mentioned, please include a glossary of links at the end of the summarization.",
+        "Be advised, some blog posts might be a summary in their own, try not to be too repetitive.",
+        "Strive to summarize in five sentences or less.",
+        "If the post is an instruction or workshop just summarize the contents, do not include steps.",
+        "Ensure that the response is valid markdown format and that links, newlines, and lists are formatted properly."
+    ])
     for file in glob.glob("data/raw/*.json"):
         summarized = False
         file_name = Path(file).name
@@ -58,7 +67,7 @@ def summarize():
             continue
         print(f"Summarizing {file_name}")
         with open(file, "r") as f:
-            response = query_bedrock(summarize_model_id, "You are a helpful assistant that summarizes AWS blog posts and RSS feeds.", f.read())
+            response = query_bedrock(summarize_model_id, prompt, f.read())
             full_response, _ = handle_bedrock_response(summarize_model_id, response, True)
 
             with open(summarized_file, "w") as f:
@@ -74,27 +83,34 @@ def summarize():
 
 @bp.cli.command("tag")
 def tag():
-    tag_model_id = "us.amazon.nova-pro-v1:0"
+    # tag_model_id = "us.amazon.nova-pro-v1:0"
+    tag_model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     posts = Post.select().order_by(Post.post_date.desc())
+    prompt = " ".join([
+        "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds.",
+        "Your job is to summarize text to the most overall topics in a comma delimited list.", 
+        "You must be extremely precise and only grab the most relevant terms and not excessively capture minor components.",
+        "Just the highest level themes. The text should be cleaned up, no whitespaces or hanging dashes.",
+        "Avoid the basic tag of 'aws' because that is a given."
+    ])
     for post in posts:
-        if not post.tags:
-            summary_content = None
+        if not post.get_tags():
             with open(post.get_summary(), "r") as f:
                 summary_content = f.read()
-            response = query_bedrock(tag_model_id, "You are a helpful assistant that retrieves metadata from AWS blog posts and RSS feeds. Your job is to summarize text to the most overall topics in a comma delimited list. You must be extremely precise and only grab the most relevant terms and not excessively capture minor components. Just the highest level themes. The text should be cleaned up, no whitespaces or hanging dashes. Avoid the basic tag of 'aws' because that is a given.", "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
-            full_response, _ = handle_bedrock_response(tag_model_id, response, True)
-            
-            tags = full_response.split(",")
-            for tag in tags:
-                if tag.strip().lower() == "aws":
-                    print("Skipping tag 'AWS'")
-                    continue
-                Tag.create(
-                    name=tag.strip(),
-                    post=post
-                )
-                print(f"Added tag '{tag.strip()}' to post {post.uuid}")
-            sleep(2)
+                response = query_bedrock(tag_model_id, prompt, "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
+                full_response, _ = handle_bedrock_response(tag_model_id, response, True)
+
+                tags = full_response.split(",")
+                for tag in tags:
+                    if tag.strip().lower() == "aws":
+                        print("Skipping tag 'AWS'")
+                        continue
+                    Tag.create(
+                        name=tag.strip(),
+                        post_id=post.id
+                    )
+                    print(f"Added tag '{tag.strip()}' to post {post.uuid}")
+                sleep(2)
 
 
 @bp.cli.command("costs")
@@ -108,8 +124,31 @@ def costs():
 def debug():
     posts = Post.select()
     for post in posts:
-        if not post.tags:
+        if not post.get_tags():
             print("no tags")
         else:
             for tag in post.tags:
                 print(tag)
+
+def delete_post(uuid):
+    post = Post.select().filter(Post.uuid == uuid).first()
+    if not post:
+        print("That post does not exist!")
+        return
+    tags = post.get_tags()
+    summary = post.get_summary()
+    summary.unlink()
+    print(f"Deleted summary at {summary}")
+    for tag in tags:
+        tag.delete_instance()
+        print(f"Deleted tag {tag.id} ({tag.name})")
+
+@bp.cli.command("delete")
+@click.argument("uuid")
+def delete(uuid):
+    delete_post(uuid)
+
+@bp.cli.command("wipe_all")
+def wipe():
+    for post in Post.select().order_by(Post.post_date.desc()):
+        delete_post(post.uuid)
