@@ -94,7 +94,8 @@ def tag():
         "Avoid the basic tag of 'aws' because that is a given."
     ])
     for post in posts:
-        if not post.get_tags():
+        if not post.get_tags() and post.get_summary().exists():
+            print(f"Tagging post {post.id} {post.uuid}")
             with open(post.get_summary(), "r") as f:
                 summary_content = f.read()
                 response = query_bedrock(tag_model_id, prompt, "Summarize the following text as a comma-delimited list of 3-8 metadata tags capturing the most relevant key topics, entities, and themes of the following text: " + summary_content)
@@ -121,14 +122,11 @@ def costs():
     print(f"Total: ${total:.6f}")
 
 @bp.cli.command("debug")
-def debug():
-    posts = Post.select()
-    for post in posts:
-        if not post.get_tags():
-            print("no tags")
-        else:
-            for tag in post.tags:
-                print(tag)
+@click.argument("uuid")
+def debug(uuid):
+    post = Post.select().filter(Post.uuid == uuid).first()
+    if post:
+        print(f"{post.title} - {post.uuid} ({post.id}) - {post.post_date}")
 
 def delete_post(uuid):
     post = Post.select().filter(Post.uuid == uuid).first()
@@ -137,11 +135,14 @@ def delete_post(uuid):
         return
     tags = post.get_tags()
     summary = post.get_summary()
-    summary.unlink()
+    if summary.exists():
+        summary.unlink()
     print(f"Deleted summary at {summary}")
     for tag in tags:
         tag.delete_instance()
         print(f"Deleted tag {tag.id} ({tag.name})")
+    post.delete_instance()
+    print(f"Delete post {post.uuid}")
 
 @bp.cli.command("delete")
 @click.argument("uuid")
