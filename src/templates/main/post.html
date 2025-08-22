@@ -6,7 +6,8 @@
     <h1>{{ post.title }}</h1>
     <h4>From {{ post.source }}</h4>
     <p>{{ post.post_date }} ({{ post.post_date | humanize }})</p>
-    {% for tag in post.tags %}
+    <p>{{ post.id }}</p>
+    {% for tag in post.get_tags() %}
     <span class="button" style="background-color: {{ tag.name | string_to_color }}80; margin: 4px;">{{ tag.name }}</span>
     {% endfor %}
 </section>

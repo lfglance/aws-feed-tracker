@@ -15,7 +15,9 @@ def search():
     query = request.args.get("query")
     if query:
         _tags = _tags.where(fn.LOWER(Tag.name).contains(query))
-    _posts = list(OrderedDict.fromkeys([tag.post for tag in _tags]))
+        _posts = list(OrderedDict.fromkeys([tag.get_post() for tag in _tags]))
+    else:
+        _posts = Post.select().order_by(Post.post_date.desc())
     chunk_size = 3
     for post in _posts:
         if not post.get_summary().exists():
