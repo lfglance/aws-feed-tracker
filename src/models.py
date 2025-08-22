@@ -34,7 +34,7 @@ class Post(Base):
         return Path(fp)
 
     def get_tags(self, amount=0):
-        tags = Tag.select().filter(Tag.post == self)
+        tags = Tag.select().filter(Tag.post_id == self.id)
         if amount:
             tags = tags.limit(amount)
         return tags
@@ -43,7 +43,10 @@ class Tag(Base):
     id = CharField(default=gen_uuid)
     create_date = DateTimeField(default=datetime.now(tz=timezone.utc))
     name = CharField(unique=False)
-    post = ForeignKeyField(Post, backref="tags", unique=False, on_delete="CASCADE")
+    post_id = CharField(unique=False, null=False)
+
+    def get_post(self):
+        return Post.select().filter(Post.id == self.post_id).first()
 
 class BedrockCall(Base):
     id = CharField(default=gen_uuid)
