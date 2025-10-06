@@ -11,7 +11,7 @@ bp = Blueprint("htmx", "htmx", url_prefix="/htmx")
 @bp.route("/search")
 def search():
     posts = [[]]
-    _tags = Tag.select()
+    _tags = Tag.select().order_by(Tag.create_date.desc())
     query = request.args.get("query")
     if query:
         _tags = _tags.where(fn.LOWER(Tag.name).contains(query))
